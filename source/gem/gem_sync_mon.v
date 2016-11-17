@@ -62,22 +62,31 @@ assign gem_kchar[1] = gem1_kchar;
 assign gem_kchar[2] = gem2_kchar;
 assign gem_kchar[3] = gem3_kchar;
 
-assign frame_sep_in_table[0] = gem_kchar[0]==8'hBC || gem_kchar[0]==8'hF7 || gem_kchar[0]==8'hFB || gem_kchar[0]==8'hFD;
-assign frame_sep_in_table[1] = gem_kchar[1]==8'hBC || gem_kchar[1]==8'hF7 || gem_kchar[1]==8'hFB || gem_kchar[1]==8'hFD;
-assign frame_sep_in_table[2] = gem_kchar[2]==8'hBC || gem_kchar[2]==8'hF7 || gem_kchar[2]==8'hFB || gem_kchar[2]==8'hFD;
-assign frame_sep_in_table[3] = gem_kchar[3]==8'hBC || gem_kchar[3]==8'hF7 || gem_kchar[3]==8'hFB || gem_kchar[3]==8'hFD;
+assign frame_sep_in_table[0] = gem_kchar[0]==8'hBC || gem_kchar[0]==8'hF7 || gem_kchar[0]==8'hFB || gem_kchar[0]==8'hFD || gem_kchar[0]==8'hFC;
+assign frame_sep_in_table[1] = gem_kchar[1]==8'hBC || gem_kchar[1]==8'hF7 || gem_kchar[1]==8'hFB || gem_kchar[1]==8'hFD || gem_kchar[1]==8'hFC;
+assign frame_sep_in_table[2] = gem_kchar[2]==8'hBC || gem_kchar[2]==8'hF7 || gem_kchar[2]==8'hFB || gem_kchar[2]==8'hFD || gem_kchar[2]==8'hFC;
+assign frame_sep_in_table[3] = gem_kchar[3]==8'hBC || gem_kchar[3]==8'hF7 || gem_kchar[3]==8'hFB || gem_kchar[3]==8'hFD || gem_kchar[3]==8'hFC;
 
 // on overflow, just assume it was correct and increment to the next marker (bypass the actual value, and just use the expected)
 // if the marker is not in the table, use the expected value but flag an error
 // we do this to keep the cycle going in the case of an error (so a single frame error doesn't always multiply x4)
-assign frame_sep [0] = (~gemA_overflow || ~frame_sep_in_table[0]) ? gem_kchar[0] : frame_sep_next[0];
-assign frame_sep [1] = (~gemA_overflow || ~frame_sep_in_table[1]) ? gem_kchar[1] : frame_sep_next[1];
-assign frame_sep [2] = (~gemB_overflow || ~frame_sep_in_table[2]) ? gem_kchar[2] : frame_sep_next[2];
-assign frame_sep [3] = (~gemB_overflow || ~frame_sep_in_table[3]) ? gem_kchar[3] : frame_sep_next[3];
+wire frame_keep [3:0];
+
+assign frame_keep [0] = (~gemA_overflow && frame_sep_in_table[0]);
+assign frame_keep [1] = (~gemA_overflow && frame_sep_in_table[1]);
+assign frame_keep [2] = (~gemB_overflow && frame_sep_in_table[2]);
+assign frame_keep [3] = (~gemB_overflow && frame_sep_in_table[3]);
+
+assign frame_sep  [0] = (frame_keep[0]) ? gem_kchar[0] : frame_sep_next[0];
+assign frame_sep  [1] = (frame_keep[1]) ? gem_kchar[1] : frame_sep_next[1];
+assign frame_sep  [2] = (frame_keep[2]) ? gem_kchar[2] : frame_sep_next[2];
+assign frame_sep  [3] = (frame_keep[3]) ? gem_kchar[3] : frame_sep_next[3];
 
 genvar ifiber;
 generate
 for (ifiber=0; ifiber<4; ifiber=ifiber+1) begin: linkloop
+
+assign frame_sep_in_table[ifiber] = gem_kchar[ifiber]==8'hBC || gem_kchar[ifiber]==8'hF7 || gem_kchar[ifiber]==8'hFB || gem_kchar[ifiber]==8'hFD || gem_kchar[ifiber]==8'hFC;
 
   initial  frame_sep_err  [ifiber] = 0;
 
@@ -112,7 +121,7 @@ assign skip_sync_check [1] = gemB_overflow;
 assign gem_sync [0] = skip_sync_check[0] || (~|frame_sep_err[1:0] && gem0_kchar==gem1_kchar); // two fibers from gem chamber 1 are synced to eachother
 assign gem_sync [1] = skip_sync_check[1] || (~|frame_sep_err[3:2] && gem2_kchar==gem3_kchar); // two fibers from gem chamber 2 are synced to eachother
 
-assign gems_sync    = ((gem0_kchar==gem2_kchar) && (&gem_sync[1:0])) || gemA_overflow || gemB_overflow; // gem super chamber is synced
+assign gems_sync    = ((gem0_kchar==gem2_kchar) && (&gem_sync[1:0])) || |(skip_sync_check); // gem super chamber is synced
 
 initial gemA_synced = 1'b1;
 initial gemB_synced = 1'b1;
